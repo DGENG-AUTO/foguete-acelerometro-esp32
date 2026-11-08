@@ -1,1 +1,4 @@
-.vscode/, __pycache__/, .exe
+.vscode/
+__pycache__/
+*.exe
+/foguete_python/Pasta de exercício/
