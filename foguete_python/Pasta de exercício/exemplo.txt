@@ -1,0 +1,396 @@
+"""
+===================================================================
+MÓDULO 2 - Leitura e decodificação de dados via porta Serial
+===================================================================
+Objetivo: Conectar na porta serial onde o ESP32 está transmitindo,
+ler as mensagens no formato "X:valor,Y:valor", e decodificá-las
+de forma segura (sem travar se uma mensagem vier corrompida).
+===================================================================
+"""
+
+import serial  # Biblioteca pyserial - permite abrir portas COM/tty
+import time
+
+# --- Configuração ---
+# IMPORTANTE: troque isso pela porta que aparece no seu PlatformIO
+# (vimos "COM3" nos seus logs anteriores). No Linux/Mac, o formato
+# é diferente, algo como "/dev/ttyUSB0" ou "/dev/cu.usbserial-xxxx".
+PORTA_SERIAL = "COM3"
+
+# Deve ser EXATAMENTE igual ao Serial.begin(115200) do código do ESP32.
+# Se os dois lados não combinarem, os dados chegam como lixo ilegível.
+BAUD_RATE = 115200
+
+
+def conectar_serial():
+    """
+    Tenta abrir a conexão com a porta serial.
+    Encapsulamos isso em uma função para podermos tentar reconectar
+    depois, caso o cabo seja desconectado durante a execução
+    (lembra do nosso problema de conectividade física? isso também
+    pode acontecer aqui, do lado do PC).
+    """
+    try:
+        conexao = serial.Serial(PORTA_SERIAL, BAUD_RATE, timeout=1)
+        # Pequena pausa: o ESP32 reinicia sozinho quando a porta serial
+        # é aberta pela primeira vez (comportamento padrão da placa),
+        # então esperamos ele estabilizar antes de começar a ler.
+        time.sleep(2)
+        print(f"Conectado à porta {PORTA_SERIAL} a {BAUD_RATE} baud.")
+        return conexao
+    except serial.SerialException as erro:
+        print(f"Não foi possível abrir a porta {PORTA_SERIAL}: {erro}")
+        return None
+
+
+def parsear_linha(linha: str):
+    """
+    Tenta interpretar uma linha no formato "X:0.052,Y:-0.013" e
+    retornar os dois valores como números float.
+
+    Retorna uma tupla (x, y) em caso de sucesso, ou None se a linha
+    estiver corrompida/incompleta — isso é o "parsing defensivo"
+    que explicamos na teoria: NUNCA assumimos que os dados estão
+    sempre bem formados.
+    """
+    try:
+        # Remove espaços em branco e quebras de linha nas pontas.
+        linha = linha.strip()
+
+        # Separa em duas partes usando a vírgula como delimitador:
+        # "X:0.052" e "Y:-0.013"
+        parte_x, parte_y = linha.split(",")
+
+        # Cada parte tem o formato "X:valor" — pegamos só o que vem
+        # depois dos dois pontos (":") e convertemos para float.
+        valor_x = float(parte_x.split(":")[1])
+        valor_y = float(parte_y.split(":")[1])
+
+        return (valor_x, valor_y)
+
+    except (ValueError, IndexError):
+        # ValueError: o texto não era um número válido (dado corrompido).
+        # IndexError: a linha não tinha a estrutura esperada (ex: veio
+        # incompleta, faltando a vírgula ou os dois pontos).
+        # Em ambos os casos, tratamos como "linha inválida" e seguimos
+        # em frente, sem travar o programa.
+        return None
+
+
+def main():
+    conexao = conectar_serial()
+    if conexao is None:
+        return  # Encerra o programa se não conseguiu conectar
+
+    print("Lendo dados... (Ctrl+C para parar)\n")
+
+    try:
+        while True:
+            # readline() bloqueia até receber um '\n' ou até o timeout
+            # (definido na configuração da conexão) expirar.
+            linha_bruta = conexao.readline()
+
+            # Os dados chegam como bytes (ex: b'X:0.05,Y:-0.01\n').
+            # Precisamos decodificar para texto (string) antes de usar.
+            # errors="ignore" descarta qualquer byte que não seja um
+            # caractere ASCII válido, em vez de travar o programa
+            # com uma exceção de decodificação.
+            linha_texto = linha_bruta.decode("utf-8", errors="ignore")
+
+            # Se a linha vier vazia (aconteceu um timeout sem receber
+            # nada), simplesmente pulamos para a próxima iteração.
+            if not linha_texto.strip():
+                continue
+
+            resultado = parsear_linha(linha_texto)
+
+            if resultado is not None:
+                x, y = resultado
+                print(f"Aceleração recebida -> X: {x:.3f} | Y: {y:.3f}")
+            else:
+                # Linha não reconhecida (pode ser a mensagem inicial
+                # "ESP32 pronto..." ou uma linha corrompida). Mostramos
+                # para fins de depuração, mas não travamos o programa.
+                print(f"[Linha ignorada, formato inesperado]: {linha_texto.strip()}")
+
+    except KeyboardInterrupt:
+        # Permite encerrar o programa de forma limpa com Ctrl+C,
+        # em vez de um erro feio no terminal.
+        print("\nEncerrando leitura...")
+
+    finally:
+        # Este bloco roda SEMPRE, mesmo se der erro ou Ctrl+C.
+        # Fechar a porta serial explicitamente é uma boa prática:
+        # libera o recurso para outros programas (como o PlatformIO)
+        # poderem usá-la depois.
+        conexao.close()
+        print("Porta serial fechada.")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+    Extrututura anterior
+    def iniciar_leitura(self):
+        """ Método que irá rodar o código até a interrupção do usuário
+            será uma "porta" para chamar outros métodos
+        """
+        conexao = self._conectar()
+
+        if conexao is None:
+            #Irá ser encerrado o algoritmo caso dê erro
+            print("Código encerrado, por não conexão com o Serial")
+            return
+
+        print("Lendo dados... (Ctrl+C para parar)\n")
+
+        try:
+            while True:
+                # readline() bloqueia até receber um '\n' ou até o timeout
+                # (definido na configuração da conexão) expirar.
+                linha_bruta = conexao.readline()
+                # Decodificação dos dados bytes para string (textos)
+                linha_texto = linha_bruta.decode("utf-8", errors="ignore")
+
+                # Tratamento dos bytes (Se a linha vier vazia - Ocorrência de um timeout)
+                if not linha_texto.strip():
+                    #Pula para próxima interação                     
+                    continue
+
+                formatar_dados = self.formatar_bytes(linha_texto)
+
+                if formatar_dados is not None:
+                    x, y = formatar_dados
+                    print(f"Aceleração recebida -> X: {x:.3f} | Y: {y:.3f}")
+                else:
+                    print(f"[Linha ignorada, formato inesperado]: {linha_texto.strip()}")
+
+        except KeyboardInterrupt:
+            # Permite encerrar o programa de forma limpa após apertar Ctrl+C
+            print("\nEncerrando leitura...")
+        finally:
+            conexao.close()
+            print("Porta serial fechada.")
+
+
+
+
+            import socket
+
+HOST = "0.0.0.0"
+PORTA = 4210
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind((HOST, PORTA))
+sock.settimeout(2.0)
+
+print(f"Escutando UDP em {HOST}:{PORTA}...")
+
+while True:
+    try:
+        dados, endereco = sock.recvfrom(1024)
+        print(f"Recebi de {endereco}: {dados.decode('utf-8', errors='ignore')}")
+    except socket.timeout:
+        print("Aguardando pacote UDP...")
+
++===================================Parte gráfica =========================================
+"""
+===================================================================
+MÓDULO 3 - Fundamentos do Panda3D: cena, scene graph e controle
+por teclado com movimento independente de frame rate.
+===================================================================
+"""
+
+from direct.showbase.ShowBase import ShowBase
+from panda3d.core import (
+    NodePath, AmbientLight, Vec4,
+    GeomVertexFormat, GeomVertexData, GeomVertexWriter,
+    Geom, GeomTriangles, GeomNode
+)
+from direct.task import Task
+import math
+
+
+class FogueteApp(ShowBase):
+    """
+    Nossa aplicação principal. Herdar de ShowBase nos dá, de graça,
+    a janela, o loop principal escondido, a câmera padrão, e o
+    acesso a self.render (a raiz do scene graph) e self.taskMgr.
+    """
+
+    def __init__(self):
+        # Inicializa toda a infraestrutura do Panda3D (janela, câmera,
+        # motor de renderização). Sem isso, nada funciona.
+        ShowBase.__init__(self)
+
+        # Cor de fundo da cena (RGB normalizado de 0 a 1, não 0-255).
+        self.setBackgroundColor(0.15, 0.15, 0.18)
+
+        # Posiciona a câmera padrão do Panda3D. setPos(x, y, z):
+        # aqui colocamos ela "atrás" no eixo Y (-14) e um pouco
+        # acima (Z=1.8), para termos uma visão de longe do foguete.
+        self.cam.setPos(0, -14, 1.8)
+
+        # Aponta a câmera para olhar em direção a um ponto específico
+        # do espaço 3D — nesse caso, um pouco acima da origem, onde
+        # o foguete vai ficar centralizado.
+        self.cam.lookAt(0, 0, 1.5)
+
+        # --- Luz ambiente ---
+        # Sem NENHUMA luz na cena, tudo apareceria preto (mesmo com
+        # cor definida). Uma luz ambiente ilumina tudo igualmente,
+        # de todas as direções, sem sombras — é a forma mais simples
+        # de garantir que os objetos fiquem visíveis.
+        luz_ambiente = AmbientLight("luz_ambiente")
+        luz_ambiente.setColor(Vec4(0.6, 0.6, 0.6, 1))
+        # attachNewNode() cria um NodePath para essa luz e já a
+        # coloca no scene graph, como filha de "render".
+        no_luz = self.render.attachNewNode(luz_ambiente)
+        # setLight() ativa essa luz para iluminar TUDO que está
+        # "abaixo" de render na hierarquia (ou seja, a cena inteira).
+        self.render.setLight(no_luz)
+
+        # --- Criando o nó "pai" do foguete ---
+        # Este é um NodePath VAZIO, sem geometria própria — ele serve
+        # só como um "ponto de pivô": ao rotacionar ESTE nó, todos os
+        # filhos dele (corpo, bico) giram juntos, mantendo a posição
+        # relativa entre eles. É exatamente o conceito de hierarquia
+        # do scene graph que expliquei na teoria.
+        self.foguete = self.render.attachNewNode("foguete")
+
+        # --- Construindo o corpo (cilindro) ---
+        RAIO = 0.3
+        ALTURA_CORPO = 3.0
+        corpo = self._criar_cilindro(RAIO, ALTURA_CORPO, segmentos=24)
+        corpo.setColor(1.0, 0.2, 0.2, 1)  # Vermelho
+        # Posiciona o corpo DENTRO do referencial do foguete (não do
+        # mundo inteiro) — por isso os valores são relativos à origem
+        # do próprio "self.foguete", não à câmera ou ao chão.
+        corpo.setPos(0, 0, ALTURA_CORPO / 2)
+        corpo.reparentTo(self.foguete)  # <- Aqui a hierarquia acontece!
+
+        # --- Construindo o bico (cone) ---
+        ALTURA_BICO = 1.0
+        bico = self._criar_cone(RAIO, ALTURA_BICO, segmentos=24)
+        bico.setColor(1.0, 0.8, 0.15, 1)  # Amarelo
+        bico.setPos(0, 0, ALTURA_CORPO + ALTURA_BICO / 2)
+        bico.reparentTo(self.foguete)
+
+        # --- Variáveis de estado da rotação ---
+        # Guardamos os ângulos atuais como variáveis PRÓPRIAS (não
+        # perguntamos ao Panda3D "qual é o ângulo agora" toda vez),
+        # porque vamos incrementá-los manualmente a cada frame.
+        self.angulo_pitch = 0.0
+        self.angulo_roll = 0.0
+
+        # Velocidade de rotação em GRAUS POR SEGUNDO (não por frame!)
+        # — lembra do conceito de delta time? É por isso que definimos
+        # a velocidade nessa unidade, e não "graus por frame".
+        self.VELOCIDADE_ROTACAO = 60.0
+
+        # Registra nossa função de atualização no Task Manager.
+        # A partir daqui, self.update() será chamada automaticamente
+        # UMA VEZ POR FRAME, para sempre, até o programa fechar.
+        self.taskMgr.add(self.update, "tarefa_atualizacao")
+
+    def _criar_cilindro(self, raio, altura, segmentos):
+        """
+        Gera a geometria de um cilindro manualmente, vértice por
+        vértice. Isso é 'geometria procedural' — construir formas
+        3D através de matemática, em vez de carregar um arquivo de
+        modelo pronto (.obj, .gltf, etc.).
+        """
+        formato = GeomVertexFormat.getV3()  # Formato: só posição (x,y,z), sem cor/textura por vértice
+        dados_vertices = GeomVertexData("cilindro", formato, Geom.UHStatic)
+        escritor = GeomVertexWriter(dados_vertices, "vertex")
+
+        # Para cada "fatia" ao redor do círculo, criamos 2 vértices:
+        # um na base (Z negativo) e um no topo (Z positivo).
+        for i in range(segmentos + 1):
+            angulo = 2 * math.pi * i / segmentos
+            x = raio * math.cos(angulo)
+            y = raio * math.sin(angulo)
+            escritor.addData3(x, y, -altura / 2)  # vértice de baixo
+            escritor.addData3(x, y, altura / 2)   # vértice de cima
+
+        # Triângulos conectam os vértices em pares, formando a
+        # superfície lateral do cilindro (2 triângulos por "fatia").
+        triangulos = GeomTriangles(Geom.UHStatic)
+        for i in range(segmentos):
+            i1, i2 = i * 2, i * 2 + 1
+            i3, i4 = (i + 1) * 2, (i + 1) * 2 + 1
+            triangulos.addVertices(i1, i3, i2)
+            triangulos.addVertices(i2, i3, i4)
+
+        geometria = Geom(dados_vertices)
+        geometria.addPrimitive(triangulos)
+        no = GeomNode("cilindro")
+        no.addGeom(geometria)
+        return NodePath(no)
+
+    def _criar_cone(self, raio, altura, segmentos):
+        """Mesma lógica do cilindro, mas convergindo para um único
+        ponto no topo (o ápice do cone)."""
+        formato = GeomVertexFormat.getV3()
+        dados_vertices = GeomVertexData("cone", formato, Geom.UHStatic)
+        escritor = GeomVertexWriter(dados_vertices, "vertex")
+
+        for i in range(segmentos):
+            angulo = 2 * math.pi * i / segmentos
+            x = raio * math.cos(angulo)
+            y = raio * math.sin(angulo)
+            escritor.addData3(x, y, -altura / 2)
+
+        escritor.addData3(0, 0, altura / 2)  # O ápice (ponta do cone)
+        indice_apice = segmentos
+
+        triangulos = GeomTriangles(Geom.UHStatic)
+        for i in range(segmentos):
+            proximo = (i + 1) % segmentos
+            triangulos.addVertices(i, proximo, indice_apice)
+
+        geometria = Geom(dados_vertices)
+        geometria.addPrimitive(triangulos)
+        no = GeomNode("cone")
+        no.addGeom(geometria)
+        return NodePath(no)
+
+    def update(self, task):
+        """
+        Executada automaticamente uma vez por frame pelo Task Manager.
+        Aqui vive a lógica de "o que muda a cada instante".
+        """
+        # globalClock.getDt() retorna quantos SEGUNDOS se passaram
+        # desde o último frame (geralmente uma fração pequena, tipo
+        # 0.016 para 60 FPS). É a peça-chave do movimento consistente
+        # que explicamos na teoria.
+        dt = globalClock.getDt()
+
+        # is_button_down() pergunta o estado ATUAL da tecla, a cada
+        # frame — isso é "polling", como explicamos.
+        if self.mouseWatcherNode.is_button_down("arrow_up"):
+            self.angulo_pitch += self.VELOCIDADE_ROTACAO * dt
+        if self.mouseWatcherNode.is_button_down("arrow_down"):
+            self.angulo_pitch -= self.VELOCIDADE_ROTACAO * dt
+        if self.mouseWatcherNode.is_button_down("arrow_right"):
+            self.angulo_roll += self.VELOCIDADE_ROTACAO * dt
+        if self.mouseWatcherNode.is_button_down("arrow_left"):
+            self.angulo_roll -= self.VELOCIDADE_ROTACAO * dt
+
+        # Aplicamos os ângulos acumulados ao NÓ PAI do foguete.
+        # Como corpo e bico são FILHOS desse nó, os dois giram juntos.
+        self.foguete.setP(self.angulo_pitch)
+        self.foguete.setR(self.angulo_roll)
+
+        # OBRIGATÓRIO: retornar Task.cont diz ao Panda3D "continue
+        # me chamando no próximo frame". Esquecer isso é um erro
+        # comum que faz a tarefa parar de rodar após o 1º frame.
+        return Task.cont
+
+
+# Ponto de entrada do programa.
+app = FogueteApp()
+app.run()  # Entrega o controle para o loop interno do ShowBase
