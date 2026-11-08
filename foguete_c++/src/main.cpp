@@ -8,9 +8,9 @@ const int REG_PWR_MGMT_1 = 0x6B;
 const int REG_ACCEL_XOUT_H = 0x3B;
 const float FATOR_ESCALA_2G = 16384.0;
 
-// Wi‑Fi
-const char* WIFI_SSID = "TP-LINK_51AE";
-const char* WIFI_SENHA = "65784150";
+// Wi‑Fi informações
+const char* WIFI_SSID = "xxxx";
+const char* WIFI_SENHA = "xxxxx";
 
 // PC que vai receber
 const char* IP_DESTINO = "192.168.1.101";
