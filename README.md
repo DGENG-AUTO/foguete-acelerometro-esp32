@@ -290,13 +290,13 @@ Se o foguete inclinar no eixo errado, troque `x` e `y` no mapeamento: depende de
 
 ## 📄 Licença
 
-Distribuído sob a licença **MIT** (ajuste conforme sua preferência). Veja o arquivo `LICENSE` para mais informações.
+Esse código é autoral e cunho educativo, logo é distribuído sob a licença **MIT** (ajuste conforme sua preferência). 
 
 ---
 
 ## 👤 Autor
 
-**Seu Nome**
-[LinkedIn](https://www.linkedin.com/in/seu-perfil) · [GitHub](https://github.com/seu-usuario)
+**Douglas Carvalho**
+[LinkedIn](https://www.linkedin.com/in/douglas-carvalho-4a6091300/) · [GitHub](https://github.com/DGENG-AUTO)
 
 Projeto desenvolvido como trilha de estudos em Sistemas Embarcados e Computação Gráfica.
